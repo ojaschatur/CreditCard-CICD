@@ -1,0 +1,55 @@
+image: google/cloud-sdk:latest
+
+stages:
+  - test
+  - train
+  - deploy
+
+include:
+  - template: Security/Secret-Detection.gitlab-ci.yml
+  - template: Jobs/Dependency-Scanning.gitlab-ci.yml
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Jobs/Code-Quality.gitlab-ci.yml 
+
+train:
+  stage: train
+  script:
+    # Install Python3 pip and venv
+    - apt-get update && apt-get install -y python3-pip python3-venv
+    # Create a Python virtual environment
+    - python3 -m venv venv
+    # Activate the virtual environment
+    - source venv/bin/activate
+    # Upgrade pip
+    - pip install --upgrade pip
+    # Install required dependencies in the virtual environment
+    - pip install pandas scikit-learn joblib imbalanced-learn google-cloud-storage
+    # Run the training script
+    - python3 src/train.py
+  artifacts:
+    paths:
+      - model.pkl  # Save the trained model for use in deploy stage
+
+deploy:
+  stage: deploy
+  image:
+    name: gcr.io/deeplearning-platform-release/sklearn-cpu
+    entrypoint: [""]
+  script:
+    # Install Python3 pip and venv
+    - apt-get update --allow-releaseinfo-change
+    - apt-get update && apt-get install -y python3-pip python3-venv
+    # Create a Python virtual environment
+    - python3 -m venv venv
+    # Activate the virtual environment
+    - source venv/bin/activate
+    # Upgrade pip
+    - pip install --upgrade pip
+    # Install required dependencies in the virtual environment
+    - pip install google-cloud-aiplatform google-cloud-storage
+    # Run the deployment script
+    - python3 src/deploy.py
+  dependencies:
+    - train
+  only:
+    - main
